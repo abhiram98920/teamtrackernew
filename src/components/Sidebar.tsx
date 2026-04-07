@@ -171,6 +171,7 @@ export function Sidebar() {
                     : []
                 ),
                 // Checklist Status — visible to all authenticated and guest users
+                { label: 'Corrections', icon: <AlertCircle size={20} />, href: '/corrections' },
                 { label: 'Checklist Status', icon: <ClipboardList size={20} />, href: '/checklist-status' },
             ]
         },

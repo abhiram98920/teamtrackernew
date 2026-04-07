@@ -94,6 +94,11 @@ export default function TaskModal({ isOpen, onClose, task, onSave, onDelete }: T
 
     const [assignees, setAssignees] = useState<AssigneeData[]>([defaultAssignee]);
 
+    // Correction state
+    const [showCorrections, setShowCorrections] = useState(false);
+    const [correctorName, setCorrectorName] = useState('');
+    const [newCorrections, setNewCorrections] = useState<string[]>(['']);
+
     // Fetch Team ID
     useEffect(() => {
         const fetchTeam = async () => {
@@ -233,6 +238,7 @@ export default function TaskModal({ isOpen, onClose, task, onSave, onDelete }: T
                 const { data: profile } = await supabase.from('user_profiles').select('role, full_name').eq('id', user.id).single();
                 setIsQATeam(profile?.role === 'super_admin');
                 setCurrentUserName(profile?.full_name || user.email || null);
+                if (!correctorName) setCorrectorName(profile?.full_name || '');
             }
         };
         if (isOpen) checkRole();
@@ -337,6 +343,10 @@ export default function TaskModal({ isOpen, onClose, task, onSave, onDelete }: T
         } else if (isOpen && !task) {
             setFormData(initialState);
             setAssignees([defaultAssignee]);
+        }
+        if (isOpen) {
+            setShowCorrections(false);
+            setNewCorrections(['']);
         }
     }, [isOpen, task]);
 
@@ -478,6 +488,22 @@ export default function TaskModal({ isOpen, onClose, task, onSave, onDelete }: T
                         actualCompletionDate: assignee.actualCompletionDate || null,
                     });
                 });
+            }
+
+            // Save corrections if any
+            if (showCorrections && correctorName && newCorrections.some(c => c.trim())) {
+                const correctionsToSave = newCorrections.filter(c => c.trim());
+                await Promise.all(correctionsToSave.map(text => 
+                    fetch('/api/project-corrections', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            project_name: formData.projectName,
+                            submitter_name: correctorName,
+                            correction_text: text
+                        }),
+                    })
+                ));
             }
 
             await onSave(payloads as any);
@@ -860,6 +886,67 @@ export default function TaskModal({ isOpen, onClose, task, onSave, onDelete }: T
                             <div className="space-y-3"> <label className="text-sm dark:text-slate-300">Func. Bugs</label> <input type="number" name="functionalBugs" value={formData.functionalBugs || 0} onChange={handleChange} className="w-full px-5 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 dark:text-slate-200 rounded-xl outline-none" /> </div>
                         </div>
                     )}
+
+                    {/* Correction Section */}
+                    <div className="pt-6 border-t border-slate-100 dark:border-slate-800">
+                        <div className="flex items-center gap-3 mb-4">
+                            <Checkbox 
+                                checked={showCorrections} 
+                                onChange={setShowCorrections} 
+                                label={<span className="font-semibold text-slate-700 dark:text-slate-300">Add Corrections</span>} 
+                            />
+                        </div>
+
+                        {showCorrections && (
+                            <div className="space-y-4 bg-amber-50/50 dark:bg-amber-900/10 p-5 rounded-2xl border border-amber-100 dark:border-amber-900/30 animate-in slide-in-from-top-2 duration-200">
+                                <div className="space-y-2">
+                                    <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Your Name</label>
+                                    <input 
+                                        type="text" 
+                                        value={correctorName} 
+                                        onChange={(e) => setCorrectorName(e.target.value)}
+                                        className="w-full px-5 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 dark:text-slate-200 rounded-xl outline-none"
+                                        placeholder="Enter your name..."
+                                    />
+                                </div>
+                                <div className="space-y-3">
+                                    <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Corrections</label>
+                                    {newCorrections.map((text, idx) => (
+                                        <div key={idx} className="flex gap-2">
+                                            <input 
+                                                type="text" 
+                                                value={text} 
+                                                onChange={(e) => {
+                                                    const updated = [...newCorrections];
+                                                    updated[idx] = e.target.value;
+                                                    setNewCorrections(updated);
+                                                }}
+                                                className="flex-1 px-5 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 dark:text-slate-200 rounded-xl outline-none"
+                                                placeholder={`Correction #${idx + 1}`}
+                                            />
+                                            {idx === newCorrections.length - 1 ? (
+                                                <button 
+                                                    type="button" 
+                                                    onClick={() => setNewCorrections([...newCorrections, ''])}
+                                                    className="p-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors shadow-sm"
+                                                >
+                                                    <Plus size={20} />
+                                                </button>
+                                            ) : (
+                                                <button 
+                                                    type="button" 
+                                                    onClick={() => setNewCorrections(newCorrections.filter((_, i) => i !== idx))}
+                                                    className="p-3 bg-slate-100 dark:bg-slate-700 text-slate-500 rounded-xl hover:bg-red-50 hover:text-red-500 transition-colors"
+                                                >
+                                                    <X size={20} />
+                                                </button>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
 
                     {/* Footer */}
                     <div className="pt-6 flex items-center justify-end gap-3 border-t border-slate-100 dark:border-slate-800 mt-8">
